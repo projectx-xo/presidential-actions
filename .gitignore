@@ -1,0 +1,8 @@
+#Ingore node_modules
+node_modules/
+
+#Ingore package-lock
+package-lock.json
+
+#Ignore actions/
+actions/
