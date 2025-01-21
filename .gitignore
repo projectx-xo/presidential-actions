@@ -6,3 +6,12 @@ package-lock.json
 
 #Ignore actions/
 actions/
+
+#Latest XML
+latestFeed.xml
+
+#RSS Cache
+rssCache.json
+
+#Test file
+test.js

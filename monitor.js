@@ -9,13 +9,21 @@ const outputFilePath = path.join(__dirname, 'actions', 'presidentialActions.json
 const existingDataPath = path.join(__dirname, 'actions', 'existingData.json');
 const newDataPath = path.join(__dirname, 'actions', 'newData.json');
 
+// Utility for styled console output
+const log = {
+    info: (message) => console.log(`\x1b[34mℹ️ ${message}\x1b[0m`), // Blue
+    success: (message) => console.log(`\x1b[32m✅ ${message}\x1b[0m`), // Green
+    warn: (message) => console.log(`\x1b[33m⚠️ ${message}\x1b[0m`), // Yellow
+    error: (message) => console.log(`\x1b[31m❌ ${message}\x1b[0m`), // Red
+};
+
 // Fetch RSS feed
 async function fetchRSSFeed(feedUrl) {
     try {
         const response = await axios.get(feedUrl);
         return response.data;
     } catch (error) {
-        console.error(`Error fetching RSS feed: ${error.message}`);
+        log.error(`Failed to fetch RSS feed: ${error.message}`);
         throw error;
     }
 }
@@ -26,7 +34,6 @@ async function parseAndSanitizeRSS(xmlData) {
         const parsedData = await parseStringPromise(xmlData);
         const items = parsedData.rss.channel[0].item;
 
-        // Map and sanitize the content
         return items.map(item => ({
             title: decode(item.title[0]).trim(),
             date: new Date(item.pubDate[0]).toISOString(),
@@ -38,7 +45,7 @@ async function parseAndSanitizeRSS(xmlData) {
             )
         }));
     } catch (error) {
-        console.error(`Error parsing RSS data: ${error.message}`);
+        log.error(`Failed to parse RSS data: ${error.message}`);
         throw error;
     }
 }
@@ -52,7 +59,7 @@ function loadExistingData(filePath) {
         }
         return [];
     } catch (error) {
-        console.error(`Error loading existing data: ${error.message}`);
+        log.error(`Failed to load existing data: ${error.message}`);
         return [];
     }
 }
@@ -65,9 +72,8 @@ async function saveJSONToFile(data, filePath) {
             fs.mkdirSync(dir, { recursive: true });
         }
         fs.writeFileSync(filePath, JSON.stringify(data, null, 4), 'utf8');
-        console.log(`JSON data saved to ${filePath}`);
     } catch (error) {
-        console.error(`Error saving JSON file: ${error.message}`);
+        log.error(`Failed to save JSON file: ${error.message}`);
         throw error;
     }
 }
@@ -80,34 +86,43 @@ function findNewItems(existingData, newData) {
 
 // Process RSS feed
 async function processRSS(feedUrl, outputFilePath) {
+    log.info('⏳ Starting RSS feed processing...');
+
     try {
-        console.log('Fetching RSS feed...');
+        // Fetch RSS
+        log.info('Fetching RSS feed...');
         const xmlData = await fetchRSSFeed(feedUrl);
 
-        console.log('Parsing and sanitizing RSS data...');
+        // Parse and sanitize
+        log.info('Parsing and sanitizing RSS feed...');
         const newData = await parseAndSanitizeRSS(xmlData);
+        log.success(`Fetched ${newData.length} item(s) from RSS feed.`);
 
-        console.log('Saving new data snapshot...');
-        await saveJSONToFile(newData, newDataPath); // Save the new data for review
+        // Save new data snapshot
+        await saveJSONToFile(newData, newDataPath);
+        log.info(`New data snapshot saved. [${newData.length} items]`);
 
-        console.log('Loading existing data...');
+        // Load existing data
         const existingData = loadExistingData(outputFilePath);
+        log.info(`Loaded existing data. [${existingData.length} items]`);
 
-        console.log('Saving existing data snapshot...');
-        await saveJSONToFile(existingData, existingDataPath); // Save the existing data for review
+        // Save existing data snapshot
+        await saveJSONToFile(existingData, existingDataPath);
+        log.info('Existing data snapshot saved.');
 
-        console.log('Comparing new data with existing data...');
+        // Compare and save updates
         const newItems = findNewItems(existingData, newData);
 
         if (newItems.length > 0) {
-            console.log(`${newItems.length} new item(s) found.`);
+            log.success(`🎉 Found ${newItems.length} new item(s).`);
             const updatedData = [...newItems, ...existingData];
             await saveJSONToFile(updatedData, outputFilePath);
+            log.success(`Updated main JSON file with ${updatedData.length} total item(s).`);
         } else {
-            console.log('No new items found.');
+            log.warn('No new items found.');
         }
     } catch (error) {
-        console.error('Error processing RSS:', error.message);
+        log.error(`RSS processing failed: ${error.message}`);
     }
 }
 
@@ -118,4 +133,4 @@ function startScheduler(feedUrl, outputFilePath, intervalMs) {
 }
 
 // Start the scheduler
-startScheduler(feedUrl, outputFilePath, 30 * 60 * 1000); // Every 30 minutes
+startScheduler(feedUrl, outputFilePath, 10 * 60 * 1000); // Every 30 minutes
